@@ -1,0 +1,68 @@
+---
+title: "Monorepo vs Multirepo: Choosing the Right Git Strategy"
+excerpt: "How repository structure affects code sharing, CI build times, and team autonomy."
+summary: "The monorepo vs multirepo debate is less about technical limits and more about organizational trade-offs. Here's a framework for choosing."
+categories: [workflow, teams, ci-cd]
+publishedAt: "2026-04-08"
+updatedAt: "2026-04-08"
+readingTime: "8 min read"
+gradient: "from-sky-600 to-blue-700"
+headings:
+  - id: defining-the-terms
+    text: Defining the Terms
+    level: 2
+  - id: monorepo-advantages
+    text: Monorepo Advantages
+    level: 2
+  - id: multirepo-advantages
+    text: Multirepo Advantages
+    level: 2
+  - id: scaling-challenges
+    text: Scaling Challenges
+    level: 2
+  - id: decision-framework
+    text: Decision Framework
+    level: 2
+---
+
+## Defining the Terms
+
+A **monorepo** stores multiple projects (frontend, backend, shared libraries, infra) in a single Git repository. A **multirepo** (also called polyrepo) gives each project its own repository. Both can work — the question is which fits your team's workflow, tooling, and release cadence.
+
+## Monorepo Advantages
+
+**Atomic cross-project changes.** Renaming a shared API contract, updating a type definition, or fixing a bug in a utility library can be done in a single commit that touches all affected packages. No coordinating version bumps across repositories.
+
+**Unified tooling.** One ESLint config, one Prettier config, one CI pipeline, one `tsconfig.json` base. Enforcing standards across 10 packages is trivial when they're in the same repo.
+
+**Simplified code discovery.** Engineers can search, navigate, and understand the whole system without juggling multiple repo clones and divergent tooling setups.
+
+## Multirepo Advantages
+
+**Team autonomy.** Each team controls their own release cadence, dependency versions, and tooling without stepping on other teams. Permission scoping is simpler — you give a contractor access to one repo, not the whole codebase.
+
+**Smaller CI scope.** A change to the frontend doesn't trigger a full backend test suite. CI runs stay fast because only the affected service is built and tested.
+
+**Cleaner ownership.** When a repo corresponds to a service owned by one team, responsibility is unambiguous. In a monorepo, ownership can become blurry without explicit CODEOWNERS rules.
+
+## Scaling Challenges
+
+Monorepos at scale require specialized tooling. Google's internal monorepo has billions of lines of code — standard `git clone` would take days. Tools like Nx, Turborepo, and Bazel solve this with affected-package detection (only rebuild what changed) and remote caching.
+
+Multirepos at scale create dependency synchronization problems. If 20 services depend on a shared library and you have a security patch, you need to open 20 PRs, coordinate 20 deployments, and track version drift across all of them.
+
+## Decision Framework
+
+Start with a **monorepo if:**
+
+- Your team is small (1–20 engineers) and co-owns the whole system
+- You have heavy code sharing between services
+- You want to enforce consistent standards without overhead
+
+Start with a **multirepo if:**
+
+- Different teams have completely different tech stacks
+- Services have radically different release cadences or compliance boundaries
+- You need fine-grained access control at the repo level
+
+Most startups benefit from a monorepo early on. Most large organizations end up with a hybrid: a monorepo per domain or team, with a few independent repos for truly isolated concerns.

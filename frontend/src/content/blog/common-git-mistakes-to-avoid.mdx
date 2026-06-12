@@ -1,0 +1,101 @@
+---
+title: "Common Git Mistakes to Avoid (and How to Fix Them)"
+excerpt: "Real mistakes developers make in daily Git workflows and safe recovery steps for each case."
+summary: "Everyone commits secrets, force-pushes shared branches, or loses work to a bad reset at some point. Here's how to recover from the most painful Git mistakes."
+categories: [git, debugging, beginners]
+publishedAt: "2026-04-18"
+updatedAt: "2026-04-18"
+readingTime: "7 min read"
+gradient: "from-rose-600 to-orange-600"
+headings:
+  - id: committing-secrets
+    text: Committing Secrets
+    level: 2
+  - id: force-pushing-shared-branches
+    text: Force-Pushing Shared Branches
+    level: 2
+  - id: losing-work-with-git-reset
+    text: Losing Work with git reset
+    level: 2
+  - id: committing-to-the-wrong-branch
+    text: Committing to the Wrong Branch
+    level: 2
+  - id: making-giant-commits
+    text: Making Giant Commits
+    level: 2
+  - id: ignoring-gitignore
+    text: Ignoring .gitignore
+    level: 2
+---
+
+## Committing Secrets
+
+Credentials in Git history are effectively public, even in private repos — access tokens get rotated but the commit stays forever. If you push a secret:
+
+1. **Rotate the credential immediately.** Assume it is compromised.
+2. Remove it from history with `git filter-repo` (preferred over `BFG Repo Cleaner` for new projects).
+3. Force-push the cleaned history.
+4. Notify your team so they re-clone.
+
+Prevention: use `git-secrets` or GitTool's Secrets Scanner as a pre-commit hook to block commits containing patterns that look like keys or passwords.
+
+## Force-Pushing Shared Branches
+
+Running `git push --force` on `main` or any branch teammates are using rewrites remote history, causing everyone else's local branches to diverge. It's disorienting and can cause work to appear lost.
+
+Rules:
+
+- Never force-push to `main`, `develop`, or any branch others track.
+- If you must rewrite history on your own feature branch, use `--force-with-lease` — it aborts if someone else has pushed in the meantime.
+
+```bash
+git push --force-with-lease origin feat/my-feature
+```
+
+## Losing Work with git reset
+
+Running `git reset --hard HEAD~3` discards your last three commits and all working-directory changes. If you didn't push, it feels like the work is gone — but Git keeps "dangling" commits in the reflog for 30 days.
+
+```bash
+# Show the reflog — each entry has a hash
+git reflog
+
+# Restore the commit you lost
+git checkout -b recovery/lost-work abc1234
+```
+
+Lesson: use `git stash` before hard resets so you have a safety net.
+
+## Committing to the Wrong Branch
+
+You finished a feature and realize you committed directly to `main` instead of your feature branch. Fix:
+
+```bash
+# Create the correct branch at current HEAD
+git branch feat/correct-branch
+
+# Remove the commits from main (move HEAD back)
+git reset --hard HEAD~N   # N = number of commits to undo
+
+# The commits are now only on feat/correct-branch
+```
+
+If you already pushed to main, use `git revert` instead of reset — it creates a new commit that undoes the changes, preserving shared history.
+
+## Making Giant Commits
+
+A 2,000-line commit that touches 30 files for three different reasons breaks `git bisect`, makes code review impossible, and generates unhelpful changelogs. Commit often and logically.
+
+Use `git add -p` (patch mode) to stage individual hunks from a file so you can split related changes into separate commits even when you edited them in the same session.
+
+## Ignoring .gitignore
+
+Committing `node_modules`, `.env`, `*.log`, or build artifacts pollutes history, inflates clone size, and leaks environment-specific paths. Use GitTool's Gitignore Generator to create a solid baseline for your stack.
+
+If you've already tracked a file that should be ignored:
+
+```bash
+git rm --cached path/to/file
+echo "path/to/file" >> .gitignore
+git commit -m "chore: untrack file and add to .gitignore"
+```

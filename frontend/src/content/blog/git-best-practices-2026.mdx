@@ -1,0 +1,686 @@
+---
+title: "Git Best Practices for 2026: Team Workflow Playbook"
+excerpt: "A practical guide to branch strategy, PR quality, commit hygiene, CI checks, code review culture, and advanced Git patterns for modern teams."
+summary: "Whether you lead a 3-person startup or a 50-engineer org, these Git habits separate high-velocity teams from those constantly fighting their own history."
+categories: [workflow, teams, git]
+publishedAt: "2026-04-20"
+updatedAt: "2026-04-20"
+readingTime: "24 min read"
+gradient: "from-violet-600 to-indigo-700"
+headings:
+  - id: branch-strategy
+    text: Branch Strategy
+    level: 2
+  - id: short-lived-branches
+    text: Short-Lived Branches
+    level: 3
+  - id: branch-naming-conventions
+    text: Branch Naming Conventions
+    level: 3
+  - id: protected-branches
+    text: Protected Branches
+    level: 3
+  - id: commit-hygiene
+    text: Commit Hygiene
+    level: 2
+  - id: the-atomic-commit-principle
+    text: The Atomic Commit Principle
+    level: 3
+  - id: conventional-commits-specification
+    text: Conventional Commits Specification
+    level: 3
+  - id: writing-meaningful-commit-bodies
+    text: Writing Meaningful Commit Bodies
+    level: 3
+  - id: pull-request-quality
+    text: Pull Request Quality
+    level: 2
+  - id: anatomy-of-an-excellent-pr
+    text: Anatomy of an Excellent PR
+    level: 3
+  - id: keeping-prs-small
+    text: Keeping PRs Small
+    level: 3
+  - id: draft-prs-as-a-collaboration-tool
+    text: Draft PRs as a Collaboration Tool
+    level: 3
+  - id: ci-checks-as-guardrails
+    text: CI Checks as Guardrails
+    level: 2
+  - id: the-minimum-viable-ci-pipeline
+    text: The Minimum Viable CI Pipeline
+    level: 3
+  - id: secrets-scanning
+    text: Secrets Scanning
+    level: 3
+  - id: preview-deployments
+    text: Preview Deployments
+    level: 3
+  - id: code-review-culture
+    text: Code Review Culture
+    level: 2
+  - id: asynchronous-first-reviews
+    text: Asynchronous-First Reviews
+    level: 3
+  - id: the-tiered-comment-convention
+    text: The Tiered Comment Convention
+    level: 3
+  - id: git-internals-you-should-understand
+    text: Git Internals You Should Understand
+    level: 2
+  - id: the-object-model
+    text: The Object Model
+    level: 3
+  - id: the-index-and-the-reflog
+    text: The Index and the Reflog
+    level: 3
+  - id: advanced-workflow-patterns
+    text: Advanced Workflow Patterns
+    level: 2
+  - id: stacked-prs
+    text: Stacked PRs
+    level: 3
+  - id: ship--show--ask
+    text: Ship / Show / Ask
+    level: 3
+  - id: git-worktrees
+    text: Git Worktrees
+    level: 3
+  - id: tagging-releases
+    text: Tagging Releases
+    level: 2
+  - id: semantic-versioning
+    text: Semantic Versioning
+    level: 3
+  - id: automating-tags-in-ci
+    text: Automating Tags in CI
+    level: 3
+---
+
+## Branch Strategy
+
+Every team eventually builds a branching model. The mistake most teams make is waiting until something breaks before codifying one. Your branching model is a social contract — it tells everyone on your team where work lives, when it's safe to deploy, and how to integrate without stepping on each other.
+
+The two major strategies — **GitFlow** and **trunk-based development** — have genuine trade-offs, but for most modern SaaS teams shipping continuously, a lightweight trunk-based model is the right choice. Long-lived branches are a liability: every day a branch ages, its merge cost compounds.
+
+> "Continuous integration is not a tool — it's a practice. Branches that live for days are fundamentally incompatible with continuous integration."
+> — Dave Farley, *Continuous Delivery*
+
+### Short-Lived Branches
+
+Short-lived branches are the cornerstone of a healthy workflow. The target lifespan is **one to two days**. If a branch has been open for more than 72 hours, ask yourself why:
+
+- Is the change too large to review?
+- Is the CI pipeline too slow to give rapid feedback?
+- Is there a dependency on another in-progress branch?
+
+All three are solvable with either better decomposition of the work, faster CI, or [stacked PRs](#stacked-prs). The branch itself living for weeks is a symptom, not the disease.
+
+A practical check: look at your `git branch -r --merged main` output. If you see branches older than a month that haven't been merged, you have accumulating merge debt. Schedule a cleanup sprint.
+
+```bash
+# List remote branches sorted by last commit date (oldest first)
+git for-each-ref --sort=committerdate refs/remotes \
+  --format='%(committerdate:short)  %(refname:short)'
+```
+
+### Branch Naming Conventions
+
+Consistent branch names make automation possible. A name like `feat/user-auth` immediately tells you the type of change, the scope, and it can be parsed by CI scripts to auto-label PRs or generate changelogs.
+
+The pattern `type/short-description` using kebab-case works for most teams:
+
+| Prefix | Use Case | Example |
+|--------|----------|---------|
+| `feat/` | New user-facing capability | `feat/oauth2-login` |
+| `fix/` | Bug fix, no new capability | `fix/null-pointer-cart` |
+| `chore/` | Tooling, deps, infra | `chore/upgrade-react-19` |
+| `refactor/` | Code restructure, no behavior change | `refactor/split-auth-module` |
+| `docs/` | Documentation only | `docs/update-api-reference` |
+| `hotfix/` | Urgent prod fix branched off main | `hotfix/stripe-webhook-500` |
+
+Some teams include a ticket number: `feat/PROJ-412-user-auth`. This is valuable when your ticketing system (Linear, Jira) can auto-link the PR to the issue from the branch name.
+
+### Protected Branches
+
+Protecting your main branch is the single highest-leverage Git config change you can make. Without it, one mis-aimed `git push --force` from a developer on a bad day can silently overwrite production history.
+
+Minimum rules to enable in GitHub → Settings → Branches:
+
+1. **Require pull request before merging** — no direct pushes
+2. **Require approving reviews (at least 1)** — no self-merging
+3. **Require status checks to pass** — CI must be green
+4. **Require branches to be up to date** — no merging stale code
+5. **Do not allow force pushes** — history is append-only
+6. **Do not allow deletions** — can't accidentally `git push origin :main`
+
+Apply the same rules to `develop`, `release/*`, and any other long-lived branch your workflow defines.
+
+---
+
+## Commit Hygiene
+
+Your commit history is the project's autobiography. Well-written commits accelerate code review, make `git bisect` powerful, generate changelogs automatically, and help future engineers understand *why* a decision was made — long after Slack messages have been archived and the original author has moved on.
+
+### The Atomic Commit Principle
+
+An atomic commit makes *one logical change*. "Logical" doesn't mean one file — a rename across 40 files is one logical change. "Logical" also doesn't mean the smallest possible diff — adding a feature plus its tests is one logical change. The test is this: **if you revert this commit, the codebase should return to a previous coherent state**.
+
+Violations of atomicity to watch for:
+
+- Mixing a refactor with a bug fix and a feature in one commit
+- Committing partial work ("WIP: halfway through auth refactor")
+- Including unrelated whitespace or formatting changes that obscure the real diff
+
+The tooling fix for non-atomic commits is `git add -p` (interactive patch mode). It lets you stage individual *hunks* — subsections of a file's diff — so you can split interleaved changes into separate commits even when they touch the same file.
+
+```bash
+# Stage hunks interactively
+git add -p
+
+# Key commands in the hunk prompt:
+# y  — stage this hunk
+# n  — skip this hunk
+# s  — split into smaller hunks
+# e  — manually edit the hunk
+```
+
+### Conventional Commits Specification
+
+The [Conventional Commits](https://www.conventionalcommits.org) specification gives both humans and machines a parsing contract for commit messages:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+The `type` determines how automated tooling bumps the version:
+
+- `feat` → **minor** version bump (new capability)
+- `fix` → **patch** version bump (bug fix)
+- `BREAKING CHANGE` in footer → **major** version bump
+
+Other types — `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci` — don't trigger version bumps but improve changelog organization.
+
+A well-formed commit:
+
+```
+feat(payments): add Stripe webhook HMAC-SHA256 signature verification
+
+Previously the webhook endpoint accepted any POST to /api/webhooks/stripe.
+Without signature verification a bad actor could forge events and trigger
+fraudulent refunds or subscription upgrades.
+
+This commit adds Stripe's recommended verification using the
+STRIPE_WEBHOOK_SECRET env variable. Invalid signatures return 400
+immediately, before any event processing.
+
+BREAKING CHANGE: STRIPE_WEBHOOK_SECRET env variable is now required.
+Refs #412
+```
+
+### Writing Meaningful Commit Bodies
+
+The subject line (72 chars max) is what people see in `git log --oneline`. The body is what they read when something goes wrong at 2am and they need to understand a decision made six months ago.
+
+**Write the body like a detective report:**
+
+- What was the *problem* being solved? (Not the symptom — the root cause.)
+- What *alternatives* were considered and rejected?
+- Are there *known limitations* or follow-up tasks?
+- What *performance or security* implications should reviewers understand?
+
+```
+refactor(auth): replace bcrypt with Argon2id for password hashing
+
+bcrypt is sound but has two weaknesses for our threat model:
+1. Fixed memory cost — GPUs can amortize bcrypt cost cheaply
+2. No time/memory trade-off tuning per deployment environment
+
+Argon2id (winner of the PHC competition) addresses both. It provides
+memory-hard hashing with configurable parallelism, time, and memory
+parameters.
+
+Migration: existing bcrypt hashes are NOT invalidated. The verify path
+now checks Argon2id first, falls back to bcrypt, and re-hashes on next
+login. The bcrypt fallback can be removed in Q3 after all users have
+authenticated at least once.
+
+Performance: ~200ms per hash at m=65536,t=3,p=4 on our prod instances,
+within our 500ms login budget.
+```
+
+That's 17 lines. It will save someone hours during a future security review.
+
+---
+
+## Pull Request Quality
+
+A pull request is a *communication artifact*. It documents an intent, proposes a solution, and invites review. Teams that treat PRs as a formality to checkbox produce low-quality reviews and accumulate silent technical debt. Teams that take PRs seriously produce systems that are easier to understand and change.
+
+### Anatomy of an Excellent PR
+
+A great PR description answers five questions:
+
+1. **Why does this PR exist?** — Link to the issue/ticket. One sentence context.
+2. **What approach was taken?** — The design decision, not just the implementation detail.
+3. **What are the trade-offs?** — What did you *not* do, and why?
+4. **How was it tested?** — Unit tests, manual steps, load test results.
+5. **What should reviewers focus on?** — Guide their attention to the interesting parts.
+
+A template to paste into your repo's `.github/PULL_REQUEST_TEMPLATE.md`:
+
+```markdown
+## What & Why
+<!-- Link to issue. One sentence of context. -->
+
+## Approach
+<!-- The design decision. What alternatives did you consider? -->
+
+## Testing
+<!-- How did you verify this works? -->
+
+## Screenshots / recordings
+<!-- For UI changes -->
+
+## Checklist
+- [ ] Tests added / updated
+- [ ] Documentation updated
+- [ ] No new secrets in code
+```
+
+### Keeping PRs Small
+
+The data is unambiguous: **smaller PRs get better reviews**. A study by SmartBear found that reviewers lose effectiveness rapidly beyond 200–400 lines of diff. Beyond 400 lines, reviewers start rubber-stamping.
+
+Strategies for keeping PRs small:
+
+- **Separate refactoring from features.** First PR: rename/restructure with no behavior change. Second PR: add the feature in the cleaned-up structure. Both PRs are small and reviewable.
+- **Split by layer.** First PR: data model + migrations. Second PR: API endpoints. Third PR: UI.
+- **Use feature flags.** Merge the incomplete feature behind a `false` flag. Wire up the real logic in a follow-up PR. This breaks multi-sprint features into daily merges.
+- **Stack PRs.** Each PR builds on the previous one. Branch off the preceding feature branch, not main. See [Stacked PRs](#stacked-prs).
+
+If a PR legitimately cannot be smaller (a massive dependency upgrade, a security patch touching many files), write a more detailed description to compensate.
+
+### Draft PRs as a Collaboration Tool
+
+Draft PRs (GitHub's "Draft" status, GitLab's "Draft:" prefix) are underused. Open a draft PR the moment you start work — even before you write a line of code. This creates a real-time signal to your team about what's in flight.
+
+Benefits of early draft PRs:
+
+- **Prevents parallel work.** A teammate won't start on the same feature if they see it in the PR list.
+- **Early design feedback.** You can discuss the approach before investing implementation time.
+- **CI runs immediately.** You get test/lint feedback as you push, not at the end.
+- **Audit trail.** The commit timeline in the PR tells the story of how the solution evolved.
+
+> Open a draft PR with a description of your *intent* before writing code. If someone has a better approach, you want to know in the first 10 minutes, not the last.
+
+---
+
+## CI Checks as Guardrails
+
+CI that reliably catches problems before they reach production is the difference between a team that ships with confidence and one that lives in fear of deploys. The key word is *reliably*. A flaky CI pipeline that passes randomly trains engineers to ignore failures — the exact opposite of what you want.
+
+### The Minimum Viable CI Pipeline
+
+For a JavaScript/TypeScript app, the minimum useful checks on every PR:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test -- --coverage
+
+      - name: Build
+        run: npm run build
+```
+
+Enforce that these checks are *required* in branch protection. A failing build should block merge automatically, not rely on someone remembering to check.
+
+**CI performance targets:**
+
+- Lint + type check: under 30 seconds
+- Unit tests: under 2 minutes
+- Full build: under 3 minutes
+
+If your CI takes 15 minutes, engineers start batching commits and lose the tight feedback loop that makes CI valuable. Invest in parallelism, caching, and trimming slow tests before adding new checks.
+
+### Secrets Scanning
+
+Secrets committed to Git are a critical security vulnerability. Even if you remove the secret in the next commit, it persists in history — accessible to anyone who can clone the repo, forever, unless you perform a destructive history rewrite.
+
+Add secrets scanning at **two layers**:
+
+**1. Pre-commit (local — fast, immediate):**
+
+```bash
+# Install git-secrets
+brew install git-secrets
+
+# Register AWS patterns (or your patterns)
+git secrets --register-aws
+
+# Install hooks into current repo
+git secrets --install
+```
+
+**2. CI (server-side — catches what slips through):**
+
+```yaml
+- name: Scan for secrets
+  uses: trufflesecurity/trufflehog@main
+  with:
+    path: ./
+    base: ${{ github.event.repository.default_branch }}
+    head: HEAD
+```
+
+Common patterns to scan for: AWS access keys, GitHub personal access tokens, Stripe secret keys, database connection strings, private key PEM blocks, JWT secrets.
+
+If a secret is found in history, the recovery order is always: **rotate first, clean second**. Assume the secret is already compromised.
+
+### Preview Deployments
+
+Preview deployments — ephemeral environments spun up per-PR — are one of the highest-leverage CI improvements a frontend team can make. Instead of "check the screenshots in the PR description," reviewers get a live URL to click through.
+
+```yaml
+# Vercel deployment in CI (via vercel CLI)
+- name: Deploy preview
+  run: |
+    npm install -g vercel
+    vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
+    vercel build --token=$VERCEL_TOKEN
+    vercel deploy --prebuilt --token=$VERCEL_TOKEN
+  env:
+    VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+    VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+```
+
+Post the preview URL as a PR comment so reviewers find it immediately. The value compounds for design reviews — a non-technical designer can click a link and give feedback without any local setup.
+
+---
+
+## Code Review Culture
+
+Tools and process only take you so far. Code review is ultimately a human activity, and its quality depends on the culture your team builds around it. The best pull request template in the world won't save you if reviewers feel pressure to approve quickly or authors take feedback personally.
+
+### Asynchronous-First Reviews
+
+The default mode of code review should be **asynchronous**. This means:
+
+- Reviewers have a **24-hour SLA** for first response on non-urgent PRs
+- Authors don't ping in Slack the moment they open a PR
+- Review sessions are uninterrupted — not split across Slack pings
+
+The exception is pair review: sitting down together for 30 minutes on a particularly complex or risky change. This should be opt-in, not the default.
+
+Asynchronous review scales better. It lets reviewers block time for deep review rather than context-switching every time a PR notification arrives. It also produces better written feedback — comments that are clear enough to stand alone, without needing a follow-up Slack thread to interpret.
+
+### The Tiered Comment Convention
+
+Without a shared vocabulary, every review comment is ambiguous. Is this blocking? Should I address it before merge? Is this just a preference?
+
+A tiered convention makes the author's job clear:
+
+| Prefix | Meaning | Author action |
+|--------|---------|---------------|
+| `blocking:` | Must be resolved before merge | Required |
+| `nit:` | Minor style/preference | Optional, author decides |
+| `question:` | Curiosity, no change needed | Optional clarification |
+| `suggestion:` | Would improve this, but not blocking | Optional |
+| `praise:` | This is good, callout for future reference | None |
+
+Example usage in a review:
+
+```
+blocking: This query will do a full table scan on the `events` table at scale.
+  Add an index on (user_id, created_at) before merging.
+
+nit: prefer `const` over `let` here — the variable isn't reassigned.
+
+question: Why SHA-256 and not SHA-3? Just curious about the decision.
+
+suggestion: This could be a one-liner with Array.flatMap — up to you.
+
+praise: Really clean abstraction here. This made the whole module
+  easier to follow.
+```
+
+This convention eliminates the most common review friction: authors don't know which comments require action and which are just thoughts.
+
+---
+
+## Git Internals You Should Understand
+
+You can use Git for years without understanding its internals — until something goes wrong and you need to reason about what actually happened. A model of how Git works under the hood turns scary situations (detached HEAD, lost commits, merge conflicts) into understandable problems with clear solutions.
+
+### The Object Model
+
+Git stores four types of objects, all content-addressed with SHA-1 hashes:
+
+| Object | Contains | Created by |
+|--------|----------|------------|
+| **blob** | File contents (no filename) | `git add` |
+| **tree** | Directory listing (names + blob hashes) | `git commit` |
+| **commit** | Tree hash + parent hash(es) + metadata | `git commit` |
+| **tag** | Object hash + tagger + message | `git tag -a` |
+
+Every object is **immutable**. When you amend a commit, Git doesn't modify the original — it creates a new commit object with a new hash, and moves the branch pointer to point at it. The original commit still exists in the object store until garbage collection runs.
+
+This is why `git reflog` can recover "lost" commits — they haven't been deleted, just dereferenced.
+
+```bash
+# Inspect any object
+git cat-file -p HEAD           # pretty-print the HEAD commit
+git cat-file -p HEAD^{tree}    # the root tree of HEAD
+git ls-tree -r HEAD            # all blobs reachable from HEAD
+
+# See what a branch pointer resolves to
+git rev-parse main
+# → a3f9c12d8e4b1f2e5d6c7b8a9e0f1d2c3e4b5a6d
+```
+
+### The Index and the Reflog
+
+**The index** (also called the staging area or cache) sits between your working directory and the object store. It's a binary file at `.git/index` that holds a snapshot of what will go into the next commit. Running `git add` writes blobs to the object store and updates the index. Running `git commit` creates a tree from the current index.
+
+This three-way model — working directory / index / object store — is what makes partial-staging (`git add -p`) and `git diff --cached` possible.
+
+**The reflog** is your time machine. Every time a branch pointer moves — commit, merge, rebase, reset, checkout — Git appends a line to `.git/logs/refs/heads/<branch>`. The reflog records where HEAD has been, not just where it is now.
+
+```bash
+# Show the reflog for HEAD
+git reflog
+
+# Output:
+# a3f9c12 HEAD@{0}: commit: feat(auth): add PKCE flow
+# 7b2e4d1 HEAD@{1}: rebase finished: returning to refs/heads/feat/auth
+# 3c1a9f0 HEAD@{2}: rebase: checkout main
+# ...
+
+# Recover a commit that was "lost" to a bad reset
+git checkout -b recovery/lost-work HEAD@{4}
+```
+
+The reflog expires entries after 90 days (30 days for dangling objects). If you suspect you've lost work, act before that window closes.
+
+---
+
+## Advanced Workflow Patterns
+
+Once your team has the fundamentals locked in, these patterns address the friction points that emerge at scale: large features that can't fit in one PR, uncertainty about when to seek review, and the ergonomics of working on multiple things simultaneously.
+
+### Stacked PRs
+
+Stacked PRs (also called PR chains or draft-PR stacking) solve the problem of large features that need to be broken into reviewable pieces where each piece depends on the previous one.
+
+Instead of:
+
+```
+main ──────────────────── merge (one giant PR after 2 weeks)
+       └─────────────────────────────────── feat/big-feature
+```
+
+You get:
+
+```
+main ───── merge(1/3) ───── merge(2/3) ───── merge(3/3)
+       └── feat/part-1
+                    └── feat/part-2
+                                   └── feat/part-3
+```
+
+Each PR is small and independently reviewable. As earlier parts merge into main, you rebase the later branches. Tools like [Graphite](https://graphite.dev) and [gh-stack](https://github.com/timothyandrew/gh-stack) automate the rebase cascade.
+
+```bash
+# Create a stack manually
+git checkout -b feat/part-1 main
+# ... work, commit ...
+
+git checkout -b feat/part-2 feat/part-1
+# ... work, commit ...
+
+# After feat/part-1 merges to main, update part-2:
+git fetch origin
+git rebase --onto origin/main feat/part-1 feat/part-2
+```
+
+### Ship / Show / Ask
+
+This pattern from [martinfowler.com](https://martinfowler.com/articles/ship-show-ask.html) categorizes every change into one of three modes:
+
+- **Ship** — merge directly to main without a review. For trivial changes: typo fixes, comment updates, dependency bumps with passing tests. Requires strong trust and good CI.
+- **Show** — open a PR and merge it yourself after CI passes. You're not asking for review, you're creating a record of the change. Reviewers can comment after the fact.
+- **Ask** — standard PR with review requested before merge. For anything with non-obvious design decisions, security implications, or architectural impact.
+
+Most teams default to **Ask** for everything, which is a tax on developer throughput. Deliberately routing appropriate changes to **Ship** or **Show** frees reviewer bandwidth for the changes that genuinely need attention.
+
+The hardest part is building the cultural trust to let people **Ship** at all. It requires confidence in your CI pipeline and a team norm that a bad **Ship** commit is fixed forward, not blamed backward.
+
+### Git Worktrees
+
+`git worktree` is one of Git's most underused features. It lets you check out multiple branches simultaneously into different directories, sharing the same `.git` folder.
+
+```bash
+# Check out a branch in a new directory without touching your current workdir
+git worktree add ../gittool-hotfix hotfix/stripe-webhook-500
+
+# List active worktrees
+git worktree list
+
+# Remove a worktree when done
+git worktree remove ../gittool-hotfix
+```
+
+**When to use worktrees:**
+
+- You're in the middle of a large refactor and need to switch to a hotfix — instead of stashing, just open the hotfix in a new worktree.
+- You want to run the old version and the new version side-by-side to compare behavior.
+- You're reviewing a PR and want to test it without leaving your current branch.
+
+Each worktree has its own working directory and index but shares the object store and reflog. Committing in one worktree is instantly visible from another.
+
+---
+
+## Tagging Releases
+
+Tags are the Git feature most teams underuse until an incident forces them to. When production breaks and you need to identify exactly what code is running, deploy a rollback, or generate a diff between what was deployed last week and what's running now — tags are how you do all of that reliably.
+
+### Semantic Versioning
+
+[Semantic Versioning](https://semver.org) (`MAJOR.MINOR.PATCH`) is the standard for communicating the nature of a change to downstream consumers:
+
+- **MAJOR** — breaking change. Existing integrations must be updated.
+- **MINOR** — new capability added in a backward-compatible way. Existing integrations keep working.
+- **PATCH** — backward-compatible bug fix. Safe to auto-upgrade.
+
+For internal services with no public API contract, the versioning still provides value as a communication tool: a major bump signals "this deployment has significant changes, watch your monitors." A patch bump signals "routine fix, low risk."
+
+Prerelease versions follow the `1.0.0-rc.1`, `2.3.0-beta.4` format. Build metadata (not part of version precedence) uses `+`: `1.0.0+20260420.abc1234`.
+
+```
+v1.0.0 → v1.0.1   # patch: bug fix
+v1.0.1 → v1.1.0   # minor: new feature
+v1.1.0 → v2.0.0   # major: breaking change
+```
+
+### Automating Tags in CI
+
+Manual tagging is error-prone — people forget, use inconsistent formats, or skip it during late-night hotfixes. Automate it.
+
+With `release-please` (Google's GitHub Action for automated releases):
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          release-type: node
+```
+
+`release-please` reads your Conventional Commits since the last tag, determines the version bump, opens a "Release PR" with a CHANGELOG update, and creates the tag + GitHub Release when that PR is merged.
+
+The result is a fully automated release pipeline where the only human action is merging the release PR. The version number, changelog, and tag are all derived from your commit history.
+
+**Annotated vs lightweight tags:**
+
+```bash
+# Lightweight tag — just a pointer to a commit
+git tag v1.2.3
+
+# Annotated tag — a full object with message, tagger, date
+git tag -a v1.2.3 -m "release: v1.2.3 — fix Stripe webhook 500s"
+
+# Always prefer annotated for releases — they carry metadata
+# and can be signed with GPG
+git tag -s v1.2.3 -m "release: v1.2.3"
+
+# Push tags explicitly (they don't push with git push)
+git push origin --tags
+# Or push a specific tag:
+git push origin v1.2.3
+```
+
+Annotated tags show up in `git describe`, are included in `git log --decorate`, and support GPG signing for supply-chain security. Lightweight tags are fine for personal bookmarks but should never be used for release markers in a shared repository.
+

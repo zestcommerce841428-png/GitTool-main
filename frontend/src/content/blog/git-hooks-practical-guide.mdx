@@ -1,0 +1,109 @@
+---
+title: "Git Hooks: A Practical Guide to Automating Your Workflow"
+excerpt: "Run linters, tests, and formatters automatically at the right moments in your Git workflow."
+summary: "Git hooks are shell scripts that fire at key points in the Git lifecycle. Used well, they eliminate entire categories of 'oops' commits."
+categories: [git, workflow, ci-cd]
+publishedAt: "2026-04-10"
+updatedAt: "2026-04-10"
+readingTime: "7 min read"
+gradient: "from-purple-600 to-violet-700"
+headings:
+  - id: what-are-git-hooks
+    text: What Are Git Hooks?
+    level: 2
+  - id: pre-commit-hook
+    text: pre-commit Hook
+    level: 2
+  - id: commit-msg-hook
+    text: commit-msg Hook
+    level: 2
+  - id: pre-push-hook
+    text: pre-push Hook
+    level: 2
+  - id: sharing-hooks-with-the-team
+    text: Sharing Hooks with the Team
+    level: 2
+---
+
+## What Are Git Hooks?
+
+Git hooks are scripts stored in `.git/hooks/` that Git executes automatically at specific lifecycle events: before a commit, after a push, before a merge, and more. They can be shell scripts, Python scripts, Node.js scripts — anything executable on your system.
+
+Hooks are local by default (not committed with the repo), which is both their strength (can't break your team if misconfigured) and weakness (need tooling to share). Two hooks cover 80% of use cases: `pre-commit` and `commit-msg`.
+
+## pre-commit Hook
+
+The `pre-commit` hook fires before Git writes the commit object. Exit with a non-zero code to abort the commit. Use it to:
+
+- Run a linter on staged files
+- Format code with Prettier
+- Scan for secrets or debug statements
+- Run fast unit tests
+
+```sh
+#!/bin/sh
+# .git/hooks/pre-commit
+
+npx lint-staged
+exit $?
+```
+
+Configure lint-staged in `package.json` to only run on staged files — this keeps the hook fast even in large repos:
+
+```json
+"lint-staged": {
+  "*.{js,jsx,ts,tsx}": ["eslint --fix", "prettier --write"],
+  "*.css": ["prettier --write"]
+}
+```
+
+## commit-msg Hook
+
+The `commit-msg` hook receives the commit message file path as its first argument. Use it to enforce your commit message convention:
+
+```sh
+#!/bin/sh
+# .git/hooks/commit-msg
+
+COMMIT_MSG=$(cat "$1")
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|chore|ci)(\(.+\))?: .{1,72}"
+
+if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+  echo "❌ Commit message must follow Conventional Commits format"
+  echo "   Example: feat(auth): add OAuth2 PKCE support"
+  exit 1
+fi
+```
+
+## pre-push Hook
+
+The `pre-push` hook fires before pushing to a remote. It's the right place for slower checks you don't want in every commit — a full test suite, a type-check pass, or a build verification.
+
+```sh
+#!/bin/sh
+# .git/hooks/pre-push
+
+npm test -- --passWithNoTests
+exit $?
+```
+
+Be careful not to make this too slow. If pushing takes 3 minutes, developers will start using `--no-verify` to skip it, defeating the purpose.
+
+## Sharing Hooks with the Team
+
+Since `.git/hooks/` isn't version-controlled, use a tool to share hooks. The two most common options:
+
+**Husky**: npm package that stores hooks in `.husky/` and auto-installs them via `npm install`. Zero config for JS/TS projects.
+
+```bash
+npm install --save-dev husky
+npx husky init
+```
+
+**git config core.hooksPath**: Set a custom hooks directory that *is* version-controlled:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Add `.githooks/` to your repo, commit your hooks there, and document the one-time setup step in your README.

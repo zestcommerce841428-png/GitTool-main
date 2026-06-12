@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /blog
+Allow: /blog/
+Allow: /learn
+Allow: /learn/
+Allow: /privacy
+Allow: /changelog
+
+# Disallow authenticated/app routes — not useful for crawlers
+Disallow: /auth
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /tools/
+
+# Sitemap location
+Sitemap: https://gittool.dev/sitemap.xml

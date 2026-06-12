@@ -1,0 +1,108 @@
+---
+title: "How to Undo a Git Commit (Every Scenario Explained)"
+excerpt: "Soft reset, hard reset, revert, or amend — pick the right way to undo a Git commit without losing work."
+summary: "Undoing a commit means different things depending on whether you've pushed, whether you want to keep the changes, and whether others share the branch. Here's the decision tree."
+categories: [git, beginners, workflow]
+publishedAt: "2026-05-20"
+updatedAt: "2026-05-20"
+readingTime: "8 min read"
+gradient: "from-sky-600 to-blue-700"
+headings:
+  - id: first-decide-what-undo-means
+    text: First, Decide What "Undo" Means
+    level: 2
+  - id: fix-the-last-commit-message-or-files
+    text: Fix the Last Commit (Message or Files)
+    level: 2
+  - id: undo-a-commit-but-keep-the-changes
+    text: Undo a Commit but Keep the Changes
+    level: 2
+  - id: undo-a-commit-and-discard-the-changes
+    text: Undo a Commit and Discard the Changes
+    level: 2
+  - id: undo-a-commit-that-youve-already-pushed
+    text: Undo a Commit You've Already Pushed
+    level: 2
+  - id: recovering-a-commit-you-lost
+    text: Recovering a Commit You Lost
+    level: 2
+---
+
+## First, Decide What "Undo" Means
+
+There is no single "undo" command in Git. Before you type anything, answer three questions:
+
+1. **Do you want to keep the changes** from the commit, or throw them away?
+2. **Have you already pushed** the commit to a shared remote?
+3. **Are you fixing the most recent commit**, or one further back in history?
+
+The wrong command here is how people lose work. When in doubt, the safest answer is almost always `git revert` (which never rewrites history) over `git reset --hard` (which can destroy uncommitted work).
+
+## Fix the Last Commit (Message or Files)
+
+If you just committed and noticed a typo in the message, or forgot to stage a file, you don't need to "undo" anything — amend it:
+
+```bash
+# Fix only the commit message
+git commit --amend -m "fix: correct the validation regex"
+
+# Forgot a file? Stage it, then fold it into the last commit
+git add forgotten-file.js
+git commit --amend --no-edit
+```
+
+**Important:** only amend commits you have *not* pushed. Amending rewrites the commit, so if you've already shared it, you'll force others into a messy history.
+
+## Undo a Commit but Keep the Changes
+
+You committed too early and want the changes back as uncommitted edits — for example to split them into two commits. Use a **soft reset**:
+
+```bash
+# Undo the last commit, keep changes staged
+git reset --soft HEAD~1
+
+# Undo the last commit, keep changes but unstage them
+git reset HEAD~1
+```
+
+Your files are untouched on disk; only the commit pointer moves back. This is the safest reset because nothing is deleted.
+
+## Undo a Commit and Discard the Changes
+
+You want the commit *and* its changes gone completely. This is the only destructive option — make sure you really don't need the work:
+
+```bash
+# Permanently discard the last commit and its changes
+git reset --hard HEAD~1
+```
+
+`--hard` overwrites your working directory. Any uncommitted changes you also had are gone. If there's any doubt, run `git stash` first so you have a safety net.
+
+## Undo a Commit You've Already Pushed
+
+Once a commit is on a shared branch, rewriting history (`reset`, `amend`, `rebase`) forces everyone else to recover their clones — avoid it. Instead, create a **new commit that reverses the old one**:
+
+```bash
+# Create a new commit that undoes the changes from a specific commit
+git revert <commit-hash>
+```
+
+`git revert` is safe on shared branches because it adds history rather than rewriting it. Your teammates just `git pull` as normal. If the commit is the most recent, `git revert HEAD` works too.
+
+> Rule of thumb: **private branch → reset is fine. Shared branch → always revert.**
+
+## Recovering a Commit You Lost
+
+Did a `reset --hard` too aggressively? Don't panic — Git rarely deletes anything immediately. The **reflog** records where `HEAD` has been:
+
+```bash
+git reflog
+# 9f3a1c2 HEAD@{1}: commit: the work you thought you lost
+git reset --hard 9f3a1c2
+```
+
+The reflog keeps entries for about 90 days by default, so a "lost" commit is usually one command away from recovery.
+
+---
+
+Undoing commits is one part of a healthy Git workflow, but the better fix is catching problems *before* they land. GitTool's [secrets scanner](/tools/secrets-scanner) and security checks help you avoid the worst kind of commit you'd ever need to undo — one that leaked a credential. For more on safe daily habits, see our [common Git mistakes guide](/blog/common-git-mistakes-to-avoid).

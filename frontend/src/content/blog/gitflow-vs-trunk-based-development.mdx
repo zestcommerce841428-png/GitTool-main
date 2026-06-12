@@ -1,0 +1,72 @@
+---
+title: "GitFlow vs Trunk-Based Development: Which Should You Use?"
+excerpt: "A direct comparison of release velocity, risk, and team ergonomics across both strategies."
+summary: "GitFlow and trunk-based development represent opposite ends of the branching spectrum. Here's how to pick the one that matches your release cadence."
+categories: [workflow, teams, ci-cd]
+publishedAt: "2026-04-16"
+updatedAt: "2026-04-16"
+readingTime: "8 min read"
+gradient: "from-cyan-600 to-teal-700"
+headings:
+  - id: what-is-gitflow
+    text: What is GitFlow?
+    level: 2
+  - id: what-is-trunk-based-development
+    text: What is Trunk-Based Development?
+    level: 2
+  - id: release-cadence
+    text: Release Cadence
+    level: 2
+  - id: team-size-and-structure
+    text: Team Size and Structure
+    level: 2
+  - id: feature-flags-replace-long-branches
+    text: Feature Flags Replace Long Branches
+    level: 2
+  - id: the-verdict
+    text: The Verdict
+    level: 2
+---
+
+## What is GitFlow?
+
+GitFlow, introduced by Vincent Driessen in 2010, defines a rigid set of long-lived branches: `main`, `develop`, `feature/*`, `release/*`, and `hotfix/*`. Features are merged into `develop`, periodically cut to `release/*` for stabilization, then merged to `main` and tagged.
+
+This model made sense in an era of scheduled releases where shipping every two weeks required careful coordination. It creates a clear separation between in-development code and production-ready code.
+
+## What is Trunk-Based Development?
+
+Trunk-based development (TBD) has a single long-lived branch — `main` (the "trunk"). Everyone integrates directly to trunk multiple times per day. Feature branches exist, but they're typically under 24 hours old before being merged.
+
+TBD is the foundation of continuous delivery. Google, Facebook, and most high-velocity SaaS companies use variants of trunk-based development because it minimizes merge conflicts and keeps the feedback loop tight.
+
+## Release Cadence
+
+**GitFlow** suits teams on scheduled releases — mobile apps where App Store review takes time, enterprise software with quarterly versioning, or regulated industries that require release documentation before deployment.
+
+**TBD** suits teams who deploy multiple times per day. If your deployment is a button click and rollback takes 60 seconds, you have no reason to accumulate changes in a staging branch for a week.
+
+## Team Size and Structure
+
+Counter-intuitively, TBD tends to scale better to *larger* teams because it forces continuous integration. With GitFlow, a 20-person team can let five feature branches drift for two weeks, then face a catastrophic merge day.
+
+TBD requires stronger CI discipline: tests must pass quickly, and the culture must treat a broken build as a P0 incident.
+
+## Feature Flags Replace Long Branches
+
+The main objection to TBD: "What if a feature isn't ready to ship but we need to deploy?" The answer is feature flags. Incomplete code ships to production behind a toggle that's off for all users. This decouples deployment from release.
+
+```jsx
+if (featureFlags.isEnabled('new-checkout-flow', user)) {
+  return <NewCheckout />;
+}
+return <LegacyCheckout />;
+```
+
+Feature flags let you gradually roll out to 1% → 10% → 100% of users and instantly kill a feature without a deployment if something goes wrong.
+
+## The Verdict
+
+For most modern web applications: **trunk-based development with feature flags**. It reduces merge pain, tightens feedback loops, and forces a CI discipline that pays dividends as the team grows.
+
+Choose GitFlow if you have hard external constraints on release timing (mobile app stores, enterprise contracts, regulated environments) or if your deployment is risky enough that you need extended stabilization periods.

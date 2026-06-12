@@ -1,0 +1,83 @@
+---
+title: "How to Write Better Git Commit Messages"
+excerpt: "Use a repeatable format to make history readable, searchable, and automation-friendly."
+summary: "Good commit messages are free documentation. Bad ones are noise. Here's a practical guide to writing messages that your future self will thank you for."
+categories: [git, workflow, beginners]
+publishedAt: "2026-04-15"
+updatedAt: "2026-04-15"
+readingTime: "6 min read"
+gradient: "from-amber-500 to-orange-600"
+headings:
+  - id: conventional-commits
+    text: Conventional Commits
+    level: 2
+  - id: anatomy-of-a-good-message
+    text: Anatomy of a Good Message
+    level: 2
+  - id: use-the-imperative-mood
+    text: Use the Imperative Mood
+    level: 2
+  - id: why-not-what
+    text: Why, Not What
+    level: 2
+  - id: automate-your-changelog
+    text: Automate Your Changelog
+    level: 2
+---
+
+## Conventional Commits
+
+The [Conventional Commits](https://www.conventionalcommits.org) specification is a lightweight convention that sits on top of commit messages. It gives machines and humans a shared parsing format. The structure is:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+Valid types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`.
+
+## Anatomy of a Good Message
+
+```
+feat(payments): add Stripe webhook signature verification
+
+Previously, our webhook endpoint accepted any POST request.
+Without signature verification, a bad actor could forge events
+and trigger refunds or subscription upgrades.
+
+This commit adds Stripe's recommended HMAC-SHA256 signature check
+using the STRIPE_WEBHOOK_SECRET env variable.
+
+Closes #412
+```
+
+This message tells you: what changed (*signature verification added*), where (*payments module*), why (*security gap*), and links to the issue for full context.
+
+## Use the Imperative Mood
+
+Write the subject as if completing the sentence "If applied, this commit will ___."
+
+- ✅ `fix: prevent double submission on checkout form`
+- ❌ `fixed double submission bug`
+- ❌ `fixing the double submit issue`
+
+This matches Git's own generated messages (*"Merge branch 'feat/auth'"*) and makes `git log --oneline` read like a list of actions rather than a journal.
+
+## Why, Not What
+
+The diff already shows *what* changed. The commit message should explain *why*. "Refactor auth middleware" is low-value. "Refactor auth middleware to reduce token validation latency by ~40ms per request" is high-value.
+
+Include context reviewers and future maintainers won't have: performance benchmarks, business reasons, security considerations, or alternative approaches you rejected.
+
+## Automate Your Changelog
+
+The payoff for consistent commit messages is automation. Tools like `standard-version`, `release-please`, and `semantic-release` parse Conventional Commits to:
+
+- Determine the next semantic version (feat → minor bump, fix → patch, BREAKING CHANGE → major)
+- Generate a CHANGELOG.md grouped by type
+- Create GitHub releases with the correct tag
+
+This means your release notes come for free from well-structured commit messages. The investment in discipline compounds over the lifetime of the project.

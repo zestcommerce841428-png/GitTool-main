@@ -1,0 +1,70 @@
+---
+title: "Protecting the Main Branch in GitHub: A Complete Setup"
+excerpt: "Required checks, review rules, and guardrails that prevent accidental breaks in production."
+summary: "One unreviewed force-push to main can take down production. Branch protection rules are your last line of defense — here's how to configure them properly."
+categories: [git, teams, security]
+publishedAt: "2026-04-14"
+updatedAt: "2026-04-14"
+readingTime: "5 min read"
+gradient: "from-green-600 to-emerald-700"
+headings:
+  - id: why-protect-main
+    text: Why Protect main?
+    level: 2
+  - id: required-reviews
+    text: Required Reviews
+    level: 2
+  - id: required-status-checks
+    text: Required Status Checks
+    level: 2
+  - id: block-force-pushes
+    text: Block Force Pushes
+    level: 2
+  - id: codeowners-file
+    text: CODEOWNERS File
+    level: 2
+---
+
+## Why Protect main?
+
+Without branch protection, any team member with push access can commit directly to `main`, force-push over history, or merge a PR without any review. One tired engineer at 2am can delete a month of history. Branch protection rules on GitHub make these actions require explicit override — slowing down mistakes while barely slowing down normal work.
+
+## Required Reviews
+
+Navigate to **Settings → Branches → Add rule**. Enable *Require a pull request before merging* and set *Required approving reviews* to at least 1 (2 for critical repos).
+
+Enable *Dismiss stale pull request approvals when new commits are pushed*. This prevents the sneaky pattern of getting approval, then pushing additional unreviewed changes before merging.
+
+Enable *Require review from Code Owners* once you have a CODEOWNERS file set up — it routes the review to the right person automatically.
+
+## Required Status Checks
+
+Enable *Require status checks to pass before merging* and add your CI job names (e.g., `test`, `lint`, `build`). These must be GitHub Actions or third-party status checks already reporting to the repo.
+
+Check *Require branches to be up to date before merging* — this ensures the PR was tested against the latest main, not a stale snapshot from a week ago.
+
+## Block Force Pushes
+
+Enable *Do not allow force pushes* and *Do not allow deletions*. These two rules combined make it impossible to rewrite or destroy main's history, even for admins (unless they specifically bypass the rule with an audit trail).
+
+If you need to undo a bad commit to main, use `git revert` — it adds a new commit that undoes the change, preserving history and creating a clear record of what happened.
+
+## CODEOWNERS File
+
+Create a `.github/CODEOWNERS` file to automatically assign reviewers based on which files changed:
+
+```
+# Global fallback — any file not matched below
+*                   @your-org/core-team
+
+# Frontend
+src/frontend/**     @your-org/frontend-team
+
+# Infrastructure
+infra/**            @alice @bob
+
+# Security-sensitive
+src/auth/**         @security-lead
+```
+
+Combine with *Require review from Code Owners* in branch protection and the right people are always in the loop, without manual triage of who should review what.
